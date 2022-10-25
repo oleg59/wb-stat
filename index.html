@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WB статистика</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #222;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            color: #fff;
+            font-family: sans-serif;
+        }
+
+        .search {
+            display: flex;
+        }
+
+        .search__input {
+            width: 100%;
+            font-size: 16px;
+            background-color: #444;
+            border: 0;
+            border-bottom: 2px solid #111;
+            color: #fff;
+            padding: 5px;
+            text-align: center;
+        }
+
+        .result {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .result td {
+            border: 1px solid #111;
+            padding: 5px;
+        }
+
+        .status {
+            width: 100%;
+            text-align: center;
+            padding: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <form class="search" id="form">
+        <input name="search" id="search" class="search__input" placeholder="введите поисковую фразу...">
+    </form>
+
+    <div class="status" id="status">
+        Введите запрос!
+    </div>
+
+    <table class="result" id="resultTable" style="display: none;">
+        <thead>
+            <tr>
+                <td><b>Запросов в месяц</b></td>
+                <td id="requestCount">загрузка...</td>
+            </tr>
+            <tr>
+                <td><b>Артикул</b></td>
+                <td><b>Позиция</b></td>
+            </tr>
+        </thead>
+        <tbody id="result">
+        </tbody>
+    </table>
+
+    <script>
+        const pages = 90;
+        const brandName = 'SJ_TATTOO';
+        const articlesMap = {
+            94869424: '008',
+            94869581: '018',
+            94869489: '015',
+            94869580: '016',
+            94869488: '014',
+            94868606: '002',
+            94869367: '004',
+            94869368: '005',
+            94869307: '003',
+            94867347: '001',
+            105921728: '017',
+            94869423: '011',
+            95720702: '006',
+            95720704: '010',
+            95720705: '013',
+            95720706: '012',
+            95720701: '009',
+            95720703: '007',
+
+        }
+
+        const form = document.getElementById('form');
+        const resultTable = document.getElementById('resultTable');
+        const status = document.getElementById('status');
+        const requestCount = document.getElementById('requestCount');
+
+        form.addEventListener('submit', startSearch);
+
+        function startSearch(event) {
+            resultTable.style.display = "none";
+            status.style.display = "block";
+            status.innerText = 'Идет загрузка...';
+            requestCount.innerText = 'загрузка...'
+
+            let result = '';
+            const search = document.getElementById('search').value;
+            const urls = getUrls(search);
+
+            getRequestsInMonth(search);
+
+            Promise.all(urls.map(url =>
+                fetch(url).then(response => response.json())
+            )).then(data => {
+                for (const [i, page] of data.entries()) {
+                    if (!page?.data?.products?.length) {
+                        result += `<tr><td colspan="2"><b>Всего страниц: ${i}</b></td></tr>`;
+                        break;
+                    }
+                    const brandProducts = page.data.products.filter(p => p.brand === brandName)
+                    if (brandProducts.length > 0) {
+                        result += `<tr><td colspan="2">Страница ${i + 1}</td></tr>`;
+                        result += getProductsData(page.data.products);
+                    }
+                }
+
+                document.getElementById('result').innerHTML = result;
+                resultTable.style.display = "table";
+                status.style.display = "none";
+            })
+            event.preventDefault();
+        }
+
+        function getUrls(search) {
+            let urls = [];
+
+            for (let i = 0; i < pages; i++) {
+                urls.push(getUrlByPage(i + 1, search));
+            }
+
+            return urls;
+        }
+
+        function getUrlByPage(page, search) {
+            return 'https://search.wb.ru/exactmatch/ru/common/v4/search?appType=1&curr=rub&dest=-1029256,-102269,-2162196,-1257786&emp=0&lang=ru&locale=ru&pricemarginCoeff=1.0&query=' + encodeURIComponent(search) + '&reg=0&&resultset=catalog&sort=popular&spp=0&suppressSpellcheck=false&page=' + page;
+        }
+
+        function getProductsData(products) {
+            return products.reduce((result, product, i) => {
+                if (product.brand === brandName) {
+                    result += `<tr><td>${articlesMap[product.id]}</td><td>${i + 1}</td></tr>`;
+                }
+                return result;
+            }, '');
+        }
+
+        function getRequestsInMonth(search) {
+            fetch('https://trending-searches.wb.ru/api?itemsPerPage=10&offset=0&period=month&query=' + encodeURIComponent(search) + '&sort=desc')
+                .then(response => response.json())
+                .then(request => {
+                    const findRequest = request.data.list.find(r => r.text === search.toLowerCase());
+                    if (findRequest) {
+                        requestCount.innerText = findRequest.requestCount;
+                    } else {
+                        requestCount.innerText = '0';
+                    }
+                });
+        }
+
+
+    </script>
+</body>
+</html>
